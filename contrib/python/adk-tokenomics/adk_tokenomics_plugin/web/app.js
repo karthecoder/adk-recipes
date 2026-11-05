@@ -451,29 +451,94 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
 
-        // Update read-only toolbar telemetry badges
+        // Update read-only toolbar telemetry badges (scoped to active sub-agent filter when set)
+        const selectedApp = adkAppSelect ? (adkAppSelect.value || 'all') : 'all';
+        const scopedTurns = selectedApp === 'all'
+          ? turns
+          : turns.filter(t => t && t.app_name === selectedApp);
         const toolbarModelEl = document.getElementById('toolbar-model-badge');
         const toolbarTurnsEl = document.getElementById('toolbar-turns-badge');
         const toolbarCostEl = document.getElementById('toolbar-cost-badge');
-        if (turns.length > 0) {
-          const lastTurn = turns[turns.length - 1];
-          const rawModel = String(lastTurn.model_name || '').trim();
-          if (rawModel) {
-            const shortModel = rawModel.replace('publishers/google/models/', '');
-            if (toolbarModelEl) toolbarModelEl.textContent = shortModel;
+
+        const seenModelKeys = new Set();
+        const scopedRawModels = [];
+        const scopedShortModels = [];
+        const pushModelCandidate = (rawVal) => {
+          const rawStr = String(rawVal || '').trim();
+          if (!rawStr) return;
+          const shortStr = stripProviderPrefixes(rawStr) || rawStr;
+          const dedupeKey = shortStr.toLowerCase();
+          if (!seenModelKeys.has(dedupeKey)) {
+            seenModelKeys.add(dedupeKey);
+            scopedRawModels.push(rawStr);
+            scopedShortModels.push(shortStr);
+          } else {
+            const prevIdx = scopedShortModels.findIndex(s => s.toLowerCase() === dedupeKey);
+            if (prevIdx >= 0) {
+              scopedRawModels.splice(prevIdx, 1);
+              scopedShortModels.splice(prevIdx, 1);
+              scopedRawModels.push(rawStr);
+              scopedShortModels.push(shortStr);
+            }
+          }
+        };
+
+        scopedTurns.forEach(t => {
+          if (t && t.model_name) pushModelCandidate(t.model_name);
+        });
+        if (scopedShortModels.length === 0 && metrics && typeof metrics === 'object') {
+          const metricEntries = selectedApp === 'all'
+            ? Object.values(metrics)
+            : (metrics[selectedApp] ? [metrics[selectedApp]] : []);
+          metricEntries.forEach(mEntry => {
+            if (!mEntry || typeof mEntry !== 'object') return;
+            if (Array.isArray(mEntry.models) && mEntry.models.length > 0) {
+              mEntry.models.forEach(pushModelCandidate);
+            } else if (mEntry.model_name) {
+              pushModelCandidate(mEntry.model_name);
+            }
+          });
+        }
+
+        activeSessionModelIds = scopedRawModels.slice();
+        if (toolbarModelEl) {
+          if (scopedShortModels.length === 0) {
+            toolbarModelEl.textContent = '—';
+            toolbarModelEl.title = '';
+            toolbarModelEl.setAttribute('data-primary-model', '');
+          } else if (scopedShortModels.length === 1) {
+            toolbarModelEl.textContent = scopedShortModels[0];
+            toolbarModelEl.title = scopedRawModels[0];
+            toolbarModelEl.setAttribute('data-primary-model', scopedShortModels[0]);
+          } else {
+            const latestShort = scopedShortModels[scopedShortModels.length - 1];
+            const extraCount = scopedShortModels.length - 1;
+            toolbarModelEl.textContent = `${latestShort} (+${extraCount} more)`;
+            toolbarModelEl.title = `Active models: ${scopedShortModels.join(', ')}`;
+            toolbarModelEl.setAttribute('data-primary-model', latestShort);
           }
         }
+
         if (toolbarTurnsEl) {
-          let displayTurns = turns.length;
+          let displayTurns = scopedTurns.length;
           if (metrics && typeof metrics === 'object') {
-            const aggTurns = Object.values(metrics).reduce((acc, m) => acc + Number((m && m.turns) || 0), 0);
-            if (aggTurns > displayTurns) displayTurns = aggTurns;
+            if (selectedApp === 'all') {
+              const aggTurns = Object.values(metrics).reduce((acc, m) => acc + Number((m && m.turns) || 0), 0);
+              if (aggTurns > displayTurns) displayTurns = aggTurns;
+            } else if (metrics[selectedApp] && typeof metrics[selectedApp] === 'object') {
+              const subTurns = Number(metrics[selectedApp].turns || 0);
+              if (subTurns > displayTurns) displayTurns = subTurns;
+            }
           }
           toolbarTurnsEl.textContent = `${displayTurns} ${displayTurns === 1 ? 'turn' : 'turns'}`;
         }
         if (toolbarCostEl && metrics && typeof metrics === 'object') {
           let totSpend = 0;
-          Object.values(metrics).forEach(m => { totSpend += Number(m.cost || 0); });
+          if (selectedApp === 'all') {
+            Object.values(metrics).forEach(m => { totSpend += Number((m && m.cost) || 0); });
+          } else if (metrics[selectedApp] && typeof metrics[selectedApp] === 'object') {
+            totSpend = Number(metrics[selectedApp].cost || 0);
+          }
           toolbarCostEl.textContent = `$${totSpend.toFixed(5)}`;
         }
 
@@ -903,6 +968,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const flowBadge = formatOrchestrationBadge(turn.orchestration_flow);
+      const turnModelBadge = formatModelPillBadge(turn.model_name);
 
       html += `
         <tr style="cursor:pointer;" title="Click to inspect full prompt, response &amp; JSON" onclick="window.inspectSessionTurn(${idx})">
@@ -912,6 +978,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <div style="display:flex; align-items:center; gap:0.35rem; flex-wrap:wrap;">
               <span class="badge badge-primary" style="font-size:0.75rem;">${escapeHtml(appName)}</span>
               ${flowBadge}
+              ${turnModelBadge}
             </div>
           </td>
           <td data-sort-val="${escapeHtml(String(cleanQ).toLowerCase())}" style="min-width:190px; max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#e3e3e3;" title="${userQ}">
@@ -1159,7 +1226,35 @@ document.addEventListener('DOMContentLoaded', () => {
     return `<span class="badge badge-secondary" style="font-size:0.68rem; padding:0.12rem 0.42rem; color:#94a3b8;">🤖 ${escapeHtml(f)}</span>`;
   }
 
+  function formatModelPillBadge(modelsOrStr) {
+    const rawItems = Array.isArray(modelsOrStr) ? modelsOrStr : (modelsOrStr ? [modelsOrStr] : []);
+    const seen = new Set();
+    const shorts = [];
+    const raws = [];
+    rawItems.forEach(item => {
+      const raw = String(item || '').trim();
+      if (!raw) return;
+      const shortId = stripProviderPrefixes(raw) || raw;
+      const key = shortId.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        shorts.push(shortId);
+        raws.push(raw);
+      }
+    });
+    if (shorts.length === 0) return '';
+    const primaryShort = shorts[shorts.length - 1];
+    const displayTxt = shorts.length === 1
+      ? primaryShort
+      : `${primaryShort} (+${shorts.length - 1})`;
+    const titleTxt = shorts.length === 1
+      ? `Model: ${raws[0]}`
+      : `Models: ${shorts.join(', ')}`;
+    return `<span class="badge badge-secondary" style="font-family:var(--font-mono); font-size:0.68rem; padding:0.12rem 0.42rem; color:#93c5fd; border-color:rgba(147,197,253,0.3); background:rgba(59,130,246,0.1);" title="${escapeHtml(titleTxt)}">${escapeHtml(displayTxt)}</span>`;
+  }
+
   window.formatOrchestrationBadge = formatOrchestrationBadge;
+  window.formatModelPillBadge = formatModelPillBadge;
 
   function renderLiveMetrics(data) {
     adkLiveTableBody.innerHTML = '';
@@ -1213,6 +1308,10 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       const flowBadge = formatOrchestrationBadge(appData.orchestration_flow);
+      const appModels = (Array.isArray(appData.models) && appData.models.length > 0)
+        ? appData.models
+        : (appData.model_name ? [appData.model_name] : []);
+      const modelBadge = formatModelPillBadge(appModels);
       const safeTurns = Number(appData.turns || 0);
       const safeCached = Number(appData.cached || 0);
       const safeOutput = Number(appData.output || 0);
@@ -1230,6 +1329,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <div style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;">
             <span style="font-weight:600; color:var(--color-primary);">${escapeHtml(appData.name)}</span>
             ${flowBadge}
+            ${modelBadge}
           </div>
         </td>
         <td data-sort-val="${safeTurns}" style="text-align:center; font-weight:600;">${safeTurns}</td>
@@ -1314,6 +1414,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let globalModelsDeletedIds = [];
   let globalModelsReplaceDefaults = false;
   let globalModelsConfigPath = '';
+  let activeSessionModelIds = [];
 
   // Modal Elements
   const btnManageModels = document.getElementById('btn-manage-models');
@@ -1696,6 +1797,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const savingsByApp = {};
       const turnCountByApp = {};
       const serverTurnCostByApp = {};
+      const modelsByApp = {};
 
       turns.forEach(t => {
         const modelId = t.model_name || getActiveToolbarModelId() || '';
@@ -1725,6 +1827,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const appKey = t.app_name || 'agent';
+        if (t.model_name) {
+          const cleanTurnModel = String(t.model_name).trim();
+          if (cleanTurnModel) {
+            if (!modelsByApp[appKey]) modelsByApp[appKey] = [];
+            if (!modelsByApp[appKey].includes(cleanTurnModel)) {
+              modelsByApp[appKey].push(cleanTurnModel);
+            }
+          }
+        }
         turnCountByApp[appKey] = (turnCountByApp[appKey] || 0) + 1;
         serverTurnCostByApp[appKey] = (serverTurnCostByApp[appKey] || 0) + origTurnCost;
         costByApp[appKey] = (costByApp[appKey] || 0) + Number(t.estimated_cost || t.total_cost || 0);
@@ -1734,6 +1845,16 @@ document.addEventListener('DOMContentLoaded', () => {
       Object.keys(costByApp).forEach(appKey => {
         const appData = metrics[appKey];
         if (appData && typeof appData === 'object') {
+          if (modelsByApp[appKey] && modelsByApp[appKey].length > 0) {
+            const mergedModels = Array.isArray(appData.models) ? appData.models.slice() : [];
+            modelsByApp[appKey].forEach(mStr => {
+              if (!mergedModels.includes(mStr)) mergedModels.push(mStr);
+            });
+            appData.models = mergedModels;
+            if (!appData.model_name) {
+              appData.model_name = mergedModels[mergedModels.length - 1];
+            }
+          }
           const reportedTurns = Number(appData.turns || 0);
           const returnedTurns = turnCountByApp[appKey] || 0;
           const isAppTruncated = Boolean(data.turns_truncated) || (reportedTurns > returnedTurns);
@@ -1980,8 +2101,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function getActiveToolbarModelId() {
     const badgeEl = document.getElementById('toolbar-model-badge');
-    const txt = badgeEl ? badgeEl.textContent.trim() : '';
-    return (txt && txt !== '—') ? txt : '';
+    if (!badgeEl) return '';
+    const attrModel = badgeEl.getAttribute ? badgeEl.getAttribute('data-primary-model') : '';
+    if (attrModel && attrModel.trim()) return attrModel.trim();
+    const txt = (badgeEl.textContent || '').trim();
+    if (!txt || txt === '—') return '';
+    return txt.replace(/\s*\(\+\d+\s+more\)$/, '').trim();
   }
 
   function getProviderBadgeClass(provider) {
@@ -1996,12 +2121,15 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderModalModelsTable() {
     if (!modalModelsTableBody) return;
     modalModelsTableBody.innerHTML = '';
-    const activeModelId = getActiveToolbarModelId();
+    const fallbackToolbarId = getActiveToolbarModelId();
+    const activeIds = (Array.isArray(activeSessionModelIds) && activeSessionModelIds.length > 0)
+      ? activeSessionModelIds
+      : (fallbackToolbarId ? [fallbackToolbarId] : []);
 
     globalModelsRegistry.forEach(m => {
       const tr = document.createElement('tr');
       const pricing = m.pricing || { input: 0.75, cached: 0.075, output: 3.75 };
-      const isActive = isModelMatchingActive(m, activeModelId);
+      const isActive = activeIds.some(aid => isModelMatchingActive(m, aid));
 
       if (isActive) {
         tr.style.background = 'rgba(16, 185, 129, 0.08)';

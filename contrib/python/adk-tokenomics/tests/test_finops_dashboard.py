@@ -1936,12 +1936,28 @@ function jsonResp(obj, ok = true, status = 200) {
   assert(ctx.window.formatOrchestrationBadge('AgentTool • Sequential').includes('🧰 AgentTool • ➡️ Sequential'));
   assert(ctx.window.formatOrchestrationBadge('AgentTool • Parallel • Loop').includes('🧰 AgentTool • ⚡ Parallel • 🔁 Loop'));
 
-  // 2. Sortable Cost Share (%) column in Agent Breakdown (#adk-live-table-body, column index 7)
+  // 2. Sortable Cost Share (%) column + Multi-Model Pills & Toolbar Badge in Agent Breakdown (#adk-live-table-body, column index 7)
+  assert.strictEqual(els['toolbar-model-badge'].textContent, 'gemini-3.8-flash (+1 more)');
+  assert(els['toolbar-model-badge'].title.includes('gemini-4-argon') && els['toolbar-model-badge'].title.includes('gemini-3.8-flash'));
   const liveRows = els['adk-live-table-body'].children;
   assert.strictEqual(liveRows.length, 2);
   assert.strictEqual(liveRows[0].children.length, 8);
-  const topShare = parseFloat(liveRows[0].children[7].getAttribute('data-sort-val'));
-  const botShare = parseFloat(liveRows[1].children[7].getAttribute('data-sort-val'));
+  assert(liveRows[0].children[0]._html.includes('gemini-4-argon'), 'Agent Breakdown row 0 must render planner_root model pill');
+  assert(liveRows[1].children[0]._html.includes('gemini-3.8-flash'), 'Agent Breakdown row 1 must render tool_worker model pill');
+
+  // Sub-agent filter scopes toolbar Model/Turns/Spend badges dynamically, then restores multi-model summary when cleared
+  els['adk-app-select'].value = 'planner_root';
+  els['adk-app-select']._listeners.change.forEach(f => f());
+  await settle();
+  assert.strictEqual(els['toolbar-model-badge'].textContent, 'gemini-4-argon');
+  assert.strictEqual(els['toolbar-turns-badge'].textContent, '1 turn');
+  els['adk-app-select'].value = 'all';
+  els['adk-app-select']._listeners.change.forEach(f => f());
+  await settle();
+  assert.strictEqual(els['toolbar-model-badge'].textContent, 'gemini-3.8-flash (+1 more)');
+
+  const topShare = parseFloat(els['adk-live-table-body'].children[0].children[7].getAttribute('data-sort-val'));
+  const botShare = parseFloat(els['adk-live-table-body'].children[1].children[7].getAttribute('data-sort-val'));
   assert(topShare > botShare && Math.abs(topShare + botShare - 100.0) < 0.01);
   // Click Cost Share header twice -> desc then asc
   const shareTh = els['adk-live-table-body']._tableOwner._headers[7];
@@ -1949,10 +1965,12 @@ function jsonResp(obj, ok = true, status = 200) {
   shareTh._listeners.click.forEach(f => f()); // asc
   assert(parseFloat(els['adk-live-table-body'].children[0].children[7].getAttribute('data-sort-val')) < parseFloat(els['adk-live-table-body'].children[1].children[7].getAttribute('data-sort-val')));
 
-  // 3. Per-call Latency column in Tab 1 Waterfall & Modal + intact multi-arg tool signature + skills in Tool & Skill table
+  // 3. Per-call Latency & Model Pill in Tab 1 Waterfall & Modal + intact multi-arg tool signature + skills in Tool & Skill table
   const wfRows = els['session-turns-history-table-body'].children;
   assert.strictEqual(wfRows.length, 2);
   assert.strictEqual(wfRows[0].children.length, 10);
+  assert(wfRows[0].children[2]._html.includes('gemini-4-argon'), 'Waterfall turn #1 must render gemini-4-argon pill');
+  assert(wfRows[1].children[2]._html.includes('gemini-3.8-flash'), 'Waterfall turn #2 must render gemini-3.8-flash pill');
   assert.strictEqual(wfRows[0].children[6].textContent, '425 ms');
   assert(wfRows[0]._html.includes("search(city=&#039;Paris&#039;, days=3)"), 'Multi-arg tool must stay intact');
   assert(!wfRows[0]._html.includes('>🌐 days=3)'), 'Must NOT split multi-arg tool at comma');
@@ -1974,9 +1992,11 @@ function jsonResp(obj, ok = true, status = 200) {
   ctx.window.inspectBqRow(0);
   assert.strictEqual(els['modal-bq-latency'].textContent, '315 ms');
 
-  // 5. Rate Card modal: config_path displayed, preserves "medium"/65536/allowed_* on gemini-4-argon, and refreshes Tab 2 on save!
+  // 5. Rate Card modal: marks ALL active session models Active 🟢, displays config_path, preserves "medium"/65536/allowed_* on gemini-4-argon, and refreshes Tab 2 on save!
   els['btn-manage-models']._listeners.click.forEach(f => f({ preventDefault() {} }));
   await settle();
+  const activeModalRows = els['modal-models-table-body'].children.filter(tr => (tr._html || '').includes('Active 🟢'));
+  assert.strictEqual(activeModalRows.length, 2, 'Both gemini-4-argon and gemini-3.8-flash must be marked Active 🟢');
   assert.strictEqual(els['modal-models-config-path'].textContent, '/tmp/xdg/adk-tokenomics/models_config.json');
   const statsBeforeSave = bqStatsCalls;
   const logsBeforeSave = bqLogsCalls;
@@ -2013,6 +2033,7 @@ function jsonResp(obj, ok = true, status = 200) {
   const nonNumHtml = els['adk-live-table-body']._html || els['adk-live-table-body'].children.map(r => r._html).join('');
   assert(!nonNumHtml.includes('NaN'), 'Non-numeric cost must never render NaN: ' + nonNumHtml);
   assert(nonNumHtml.includes('100.0%') && nonNumHtml.includes('0.0%'), 'Valid agent gets 100.0% and bad agent gets 0.0%: ' + nonNumHtml);
+  assert.strictEqual(els['toolbar-model-badge'].textContent, '—', 'Empty model session must reset toolbar badge to —');
 
   console.log('V102_FRONTEND_PARITY_OK');
 })().catch(err => {
@@ -2380,6 +2401,9 @@ function jsonResp(obj, ok = true, status = 200) {
         self.assertEqual(
             built["metrics"]["research_agent_tool"]["orchestration_flow"],
             "AgentTool",
+        )
+        self.assertEqual(
+            built["metrics"]["concierge_root"]["models"], ["gemini-3.8-flash"]
         )
         self.assertAlmostEqual(
             built["metrics"]["concierge_root"]["cost_share_pct"], 75.0, places=2

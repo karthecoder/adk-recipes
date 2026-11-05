@@ -4948,10 +4948,13 @@ code {{ background:rgba(0,0,0,0.4); padding:0.2rem 0.45rem; border-radius:5px; c
 
             total_savings += t_savings
 
+            turn_model_raw = str(t.get("model_name") or "").strip()
             if app_key not in metrics_by_app:
                 metrics_by_app[app_key] = {
                     "name": app_key,
                     "orchestration_flow": flow_lbl,
+                    "model_name": turn_model_raw,
+                    "models": [],
                     "turns": 0,
                     "input": 0,
                     "cached": 0,
@@ -4962,6 +4965,10 @@ code {{ background:rgba(0,0,0,0.4); padding:0.2rem 0.45rem; border-radius:5px; c
                     "cost_share_pct": 0.0,
                 }
             entry = metrics_by_app[app_key]
+            if turn_model_raw:
+                entry["model_name"] = turn_model_raw
+                if turn_model_raw not in entry["models"]:
+                    entry["models"].append(turn_model_raw)
             cur_entry_flow = str(entry.get("orchestration_flow") or "")
             if flow_lbl and (
                 not cur_entry_flow
@@ -5106,6 +5113,8 @@ code {{ background:rgba(0,0,0,0.4); padding:0.2rem 0.45rem; border-radius:5px; c
                     {
                         "name": a_key,
                         "orchestration_flow": prev_flow,
+                        "model_name": m_key,
+                        "models": [],
                         "turns": 0,
                         "input": 0,
                         "cached": 0,
@@ -5116,6 +5125,10 @@ code {{ background:rgba(0,0,0,0.4); padding:0.2rem 0.45rem; border-radius:5px; c
                         "cost_share_pct": 0.0,
                     },
                 )
+                if m_key:
+                    ae["model_name"] = m_key
+                    if m_key not in ae["models"]:
+                        ae["models"].append(m_key)
                 if prev_flow and not ae.get("orchestration_flow"):
                     ae["orchestration_flow"] = prev_flow
                 ae["turns"] += r_t

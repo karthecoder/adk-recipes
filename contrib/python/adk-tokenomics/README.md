@@ -88,11 +88,11 @@ When you run `adk-tokenomics profile`, [`TokenProfiler`](adk_tokenomics_plugin/c
 
 ### 1. 🎯 Sub-Agent Model Tiering (`model_tiering`)
 1. **Lightweight Turn Detection:** Flags any turn where `thinking_tokens == 0` and `output_tokens <= lightweight_turn_max_output_tokens` (default: **`600` tokens**).
-2. **Cheapest Same-Provider Cloud Model Selection:** Inspects the model provider (`google`, `anthropic`, `openai`, or `open_weight`) and calls `PricingEngine.get_cheapest_model(provider=provider)` (default `include_self_hosted=False`, skipping `$0` self-hosted local entries):
-   - **Google:** `gemini-3.8-flash` (`$0.75`/1M input, `$0.075`/1M cached, `$3.75`/1M output) vs. `gemini-4-argon` (`$2.00`/1M input, `$0.10`/1M cached, `$10.00`/1M output)
-   - **Anthropic:** `claude-3-5-haiku` (`$0.80`/1M input, `$4.00`/1M output)
-   - **OpenAI:** `gpt-4o-mini` (`$0.15`/1M input, `$0.60`/1M output)
-   - **Open-Weight (MaaS):** `meta/llama-3.1-8b-instruct` (`$0.05`/1M input, `$0.08`/1M output)
+2. **Dynamic Same-Provider Cloud Model Selection:** Inspects the turn's model provider (`google`, `anthropic`, `openai`, `open_weight`, or custom) and calls `PricingEngine.get_cheapest_model(provider=provider)` against the active rate card (default `include_self_hosted=False`, skipping zero-cost local entries) to pair heavy reasoning models with lower-cost routing/extraction models - for example:
+   - **Google Gemini:** `gemini-2.5-pro` / `gemini-4-argon` → `gemini-2.5-flash` / `gemini-3.8-flash`
+   - **Anthropic Claude:** `claude-opus-4` / `claude-3-7-sonnet` → `claude-3-5-haiku`
+   - **OpenAI:** `gpt-5` / `gpt-4o` → `gpt-4o-mini`
+   - **Open-Weight (MaaS) & Custom:** `meta/llama-3.3-70b-instruct` / `deepseek-r1` → `meta/llama-3.1-8b-instruct` (or any custom endpoint registered via `models_config.json` or `tower.register_model()`)
 3. **Counterfactual Cost Simulation:** Re-computes what each lightweight turn would have cost on the target lite model using its exact `fresh_tok`, `cached_tok`, and `output_tok`. If `projected_cost < actual_cost`, it outputs the specific turn/sub-agent labels (e.g., `Turn #1 [router_agent]`) and exact projected `%` and `$` savings.
 
 ### 2. ⚡ Prefix Context Caching (`context_caching`)
@@ -284,6 +284,8 @@ adk-tokenomics assert \
 
 ### Custom Model Registration (1P, 3P, or Self-Hosted Open-Weight)
 [`PricingEngine`](adk_tokenomics_plugin/core/pricing.py) ships with built-in rate cards in [`models_config.json`](adk_tokenomics_plugin/models_config.json) for **Google Gemini** (`gemini-3.8-flash`, `gemini-4-argon`), **Anthropic Claude** (`claude-3-5-haiku`, `claude-3-7-sonnet`, `claude-opus-4`), **OpenAI** (`gpt-4o-mini`, `gpt-4o`, `gpt-5`), and **Open-Weight** models (`llama-3.1-8b`, `llama-3.3-70b`, `deepseek-v3`, `deepseek-r1`, `mistral-small`, `qwen-2.5-72b`, `gemma-3-27b`, `ollama/local-open-weight`).
+
+> **Dynamic Per-Turn Pricing & Rate-Card Customization:** Every LLM turn is priced dynamically using the exact model returned by that sub-agent's execution (`llm_response.model_version` / `llm_request.model`), with `TOKENOMICS_DEFAULT_MODEL` used only as a fallback when an event carries no model metadata. Packaged entries in `models_config.json` provide illustrative baseline rate cards for local simulation - override them anytime via `models_config.json`, the Web UI `Rate Card ⚙️` editor, or `tower.register_model()` to reflect current provider pricing or enterprise discounts.
 
 You can register custom model rate cards at runtime:
 
