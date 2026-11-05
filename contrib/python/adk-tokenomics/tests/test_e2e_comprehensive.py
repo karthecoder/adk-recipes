@@ -15,6 +15,7 @@ import io
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -2779,8 +2780,19 @@ class TestComprehensiveE2E(unittest.TestCase):
             try:
                 from setuptools import build_meta  # type: ignore
 
-                built_name = build_meta.build_wheel(wheel_out_dir)
-                wheel_path = os.path.join(wheel_out_dir, built_name)
+                try:
+                    built_name = build_meta.build_wheel(wheel_out_dir)
+                    wheel_path = os.path.join(wheel_out_dir, built_name)
+                finally:
+                    shutil.rmtree(
+                        os.path.join(REPO_ROOT, "build"), ignore_errors=True
+                    )
+                    for entry in os.listdir(REPO_ROOT):
+                        if entry.endswith(".egg-info"):
+                            shutil.rmtree(
+                                os.path.join(REPO_ROOT, entry),
+                                ignore_errors=True,
+                            )
             except Exception:
                 import glob as _glob
 

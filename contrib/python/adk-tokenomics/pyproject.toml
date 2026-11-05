@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=77.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,7 +8,7 @@ version = "1.0.2"
 description = "Turn-level AI unit economics, context profiling, model tiering, and CI budget gates for Google ADK agents."
 readme = "README.md"
 authors = [{ name = "Kartic Narayanan", email = "110996829+karthecoder@users.noreply.github.com" }]
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
 requires-python = ">=3.11"
 dependencies = []
 
@@ -39,7 +39,7 @@ all = [
 dev = [
     "pytest>=8.3.5",
     "python-dotenv>=1.0.0",
-    "setuptools>=68.0.0",
+    "setuptools>=77.0.0",
     "wheel>=0.43.0",
 ]
 
