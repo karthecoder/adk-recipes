@@ -476,12 +476,11 @@ adk_tokenomics_plugin/
     └── app.js               # Live polling, KPI cards, sortable tables & Rate Card editor
 
 examples/
-├── README.md                # End-to-End Nexus Showcase quickstart & CLI walkthrough
-├── PRD.md                   # Gold-Standard 9-Section Product Requirements Document (v1.1)
-├── run_nexus_showcase.py    # Turnkey 5-Act E2E runner (Unoptimized -> Assert -> Profile -> Optimized -> Web)
-├── shared/                  # Shared tools, {key?} prompts, SkillToolset loader & hermetic ADK runner
-├── nexus_unoptimized/       # Baseline ADK App (Argon everywhere, 6k static prompt, 0% cache hit)
-└── nexus_optimized/         # FinOps-tuned ADK App (Flash + Argon model tiering, ContextCacheConfig, Skills)
+├── README.md                # Beginner-friendly Travel Concierge quickstart (`adk web` + CLI)
+├── run_travel_demo.py       # Offline Before/After runner (Unoptimized -> Assert -> Profile -> Optimized)
+├── _shared/                 # Travel lookup tools, ADK `SKILL.md` guides & offline trace simulator
+├── travel_unoptimized/      # Baseline 3-agent ADK App (Argon everywhere, bloated prompt, 0% cache hit)
+└── travel_optimized/        # FinOps-tuned 3-agent ADK App (Flash + Argon tiering, Caching, Compaction, Skills)
 ```
 
 ---

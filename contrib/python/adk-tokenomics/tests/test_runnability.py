@@ -13,10 +13,10 @@
 # limitations under the License.
 """Runnability tests for the recipe."""
 
-import examples.nexus_optimized.agent
+import examples.travel_optimized.agent
 
 
 def test_agent_runnability() -> None:
     """Verify agent.py imports and defines the expected globals."""
-    assert examples.nexus_optimized.agent.root_agent is not None
-    assert examples.nexus_optimized.agent.app is not None
+    assert examples.travel_optimized.agent.root_agent is not None
+    assert examples.travel_optimized.agent.app is not None
