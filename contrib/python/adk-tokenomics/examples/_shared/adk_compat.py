@@ -152,26 +152,8 @@ def build_planner(
     tier_low = tier.strip().lower()
     clean = model_name.rsplit("/", maxsplit=1)[-1].strip().lower()
 
-    if clean.startswith("gemini-3"):
-        lvl_map = {
-            "minimal": genai_types.ThinkingLevel.MINIMAL,
-            "low": genai_types.ThinkingLevel.LOW,
-            "medium": genai_types.ThinkingLevel.MEDIUM,
-            "high": genai_types.ThinkingLevel.HIGH,
-        }
-        lvl = lvl_map[tier_low]
-        return (
-            BuiltInPlanner(
-                thinking_config=genai_types.ThinkingConfig(
-                    include_thoughts=(tier_low != "minimal"),
-                    thinking_level=lvl,
-                )
-            ),
-            genai_types.GenerateContentConfig(temperature=1.0),
-        )
-
-    if clean.startswith("gemini-4"):
-        # Gemini 4 Argon supports LOW / MEDIUM / HIGH thinking levels
+    if clean.startswith(("gemini-3", "gemini-4")):
+        # Vertex AI Gemini 3.8 Flash and Gemini 4 Argon support LOW / MEDIUM / HIGH
         lvl_map = {
             "minimal": genai_types.ThinkingLevel.LOW,
             "low": genai_types.ThinkingLevel.LOW,
@@ -182,7 +164,7 @@ def build_planner(
         return (
             BuiltInPlanner(
                 thinking_config=genai_types.ThinkingConfig(
-                    include_thoughts=True,
+                    include_thoughts=(tier_low != "minimal"),
                     thinking_level=lvl,
                 )
             ),

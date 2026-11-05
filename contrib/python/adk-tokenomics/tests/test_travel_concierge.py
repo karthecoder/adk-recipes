@@ -73,7 +73,7 @@ class TestTravelConciergeExample(TokenomicsTestCase):
         self.assertIsNotNone(p_min)
         self.assertEqual(
             p_min.thinking_config.thinking_level,
-            genai_types.ThinkingLevel.MINIMAL,
+            genai_types.ThinkingLevel.LOW,
         )
         self.assertFalse(p_min.thinking_config.include_thoughts)
         self.assertEqual(c_min.temperature, 1.0)
