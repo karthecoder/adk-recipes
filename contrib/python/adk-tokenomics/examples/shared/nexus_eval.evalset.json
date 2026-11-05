@@ -1,0 +1,42 @@
+{
+  "eval_set_id": "nexus_finops_showcase_evalset",
+  "name": "Nexus Enterprise Copilot FinOps Benchmark",
+  "description": "Canonical multi-turn evaluation set for verifying Nexus unit economics, context caching, and deliverable completeness.",
+  "eval_cases": [
+    {
+      "eval_id": "case_01_scope_and_roi",
+      "conversation": [
+        {
+          "invocation_id": "eval_inv_1",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Evaluate launching the Enterprise AI FinOps Copilot for Tier-1 Cloud Enterprise customers and model ROI for 10,000 daily sessions."
+              }
+            ]
+          }
+        },
+        {
+          "invocation_id": "eval_inv_2",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Run the full deep research pipeline and generate the 5-section executive decision brief."
+              }
+            ]
+          }
+        },
+        {
+          "invocation_id": "eval_inv_3",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Confirm EMEA GDPR compliance controls and run a live FinOps tokenomics audit on this session."
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
