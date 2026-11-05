@@ -456,7 +456,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const scopedTurns = selectedApp === 'all'
           ? turns
           : turns.filter(t => t && t.app_name === selectedApp);
-        const toolbarModelEl = document.getElementById('toolbar-model-badge');
         const toolbarTurnsEl = document.getElementById('toolbar-turns-badge');
         const toolbarCostEl = document.getElementById('toolbar-cost-badge');
 
@@ -501,23 +500,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         activeSessionModelIds = scopedRawModels.slice();
-        if (toolbarModelEl) {
-          if (scopedShortModels.length === 0) {
-            toolbarModelEl.textContent = '—';
-            toolbarModelEl.title = '';
-            toolbarModelEl.setAttribute('data-primary-model', '');
-          } else if (scopedShortModels.length === 1) {
-            toolbarModelEl.textContent = scopedShortModels[0];
-            toolbarModelEl.title = scopedRawModels[0];
-            toolbarModelEl.setAttribute('data-primary-model', scopedShortModels[0]);
-          } else {
-            const latestShort = scopedShortModels[scopedShortModels.length - 1];
-            const extraCount = scopedShortModels.length - 1;
-            toolbarModelEl.textContent = `${latestShort} (+${extraCount} more)`;
-            toolbarModelEl.title = `Active models: ${scopedShortModels.join(', ')}`;
-            toolbarModelEl.setAttribute('data-primary-model', latestShort);
-          }
-        }
 
         if (toolbarTurnsEl) {
           let displayTurns = scopedTurns.length;
@@ -1421,10 +1403,37 @@ document.addEventListener('DOMContentLoaded', () => {
   const modelModalOverlay = document.getElementById('model-modal-overlay');
   const btnCloseModal = document.getElementById('btn-close-modal');
   const btnCancelEdit = document.getElementById('btn-cancel-edit');
+  const btnAddNewModel = document.getElementById('btn-add-new-model');
+  const modalModelsTableContainer = document.getElementById('modal-models-table-container');
   const modalModelsTableBody = document.getElementById('modal-models-table-body');
+  const modalFormSection = document.getElementById('modal-form-section');
   const modelEditorForm = document.getElementById('model-editor-form');
   const modalFormTitle = document.getElementById('modal-form-title');
   const modalModelsConfigPath = document.getElementById('modal-models-config-path');
+
+  function showModelFormSection() {
+    if (modalFormSection) {
+      modalFormSection.classList.remove('hidden');
+      modalFormSection.style.display = 'block';
+    }
+    if (modalModelsTableContainer) {
+      modalModelsTableContainer.style.maxHeight = '230px';
+    }
+  }
+
+  function hideModelFormSection() {
+    if (modelEditorForm) {
+      modelEditorForm.reset();
+    }
+    if (modalFormSection) {
+      modalFormSection.classList.add('hidden');
+      modalFormSection.style.display = 'none';
+    }
+    if (modalModelsTableContainer) {
+      modalModelsTableContainer.style.maxHeight = '460px';
+    }
+  }
+  hideModelFormSection();
 
   // Tab Elements
   const tabBtnVisual = document.getElementById('tab-btn-visual');
@@ -1915,6 +1924,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function closeModelModal() {
+    hideModelFormSection();
     if (modelModalOverlay) {
       modelModalOverlay.classList.add('hidden');
       modelModalOverlay.style.display = 'none';
@@ -2100,13 +2110,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function getActiveToolbarModelId() {
-    const badgeEl = document.getElementById('toolbar-model-badge');
-    if (!badgeEl) return '';
-    const attrModel = badgeEl.getAttribute ? badgeEl.getAttribute('data-primary-model') : '';
-    if (attrModel && attrModel.trim()) return attrModel.trim();
-    const txt = (badgeEl.textContent || '').trim();
-    if (!txt || txt === '—') return '';
-    return txt.replace(/\s*\(\+\d+\s+more\)$/, '').trim();
+    if (Array.isArray(activeSessionModelIds) && activeSessionModelIds.length > 0) {
+      const latestRaw = String(activeSessionModelIds[activeSessionModelIds.length - 1] || '').trim();
+      return stripProviderPrefixes(latestRaw) || latestRaw;
+    }
+    return '';
   }
 
   function getProviderBadgeClass(provider) {
@@ -2136,6 +2144,8 @@ document.addEventListener('DOMContentLoaded', () => {
         tr.style.borderLeft = '3px solid var(--color-success)';
       }
 
+      tr.style.cursor = 'pointer';
+      tr.title = `Click to edit ${m.name}`;
       tr.innerHTML = `
         <td style="font-family:monospace; font-size:0.75rem; color:var(--color-primary);">
           ${escapeHtml(m.id)} ${isActive ? '<span class="badge badge-success" style="margin-left:0.35rem;">Active 🟢</span>' : ''}
@@ -2150,11 +2160,20 @@ document.addEventListener('DOMContentLoaded', () => {
           <button type="button" class="btn btn-delete-model" data-id="${escapeHtml(m.id)}" style="padding:0.25rem 0.5rem; font-size:0.75rem; background:rgba(239,68,68,0.15); color:#f87171; border:1px solid rgba(239,68,68,0.3); border-radius:6px; cursor:pointer;">Delete</button>
         </td>
       `;
+      tr.addEventListener('click', (ev) => {
+        const tgt = ev && ev.target;
+        if (tgt && tgt.className && String(tgt.className).includes('btn-delete-model')) {
+          return;
+        }
+        populateEditForm(m);
+        if (modelEditorForm) modelEditorForm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
       modalModelsTableBody.appendChild(tr);
     });
 
     document.querySelectorAll('.btn-edit-model').forEach(btn => {
       btn.addEventListener('click', (e) => {
+        if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
         const id = e.currentTarget.getAttribute('data-id');
         const m = globalModelsRegistry.find(x => x.id === id);
         if (m) {
@@ -2166,6 +2185,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.querySelectorAll('.btn-delete-model').forEach(btn => {
       btn.addEventListener('click', (e) => {
+        if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
         const id = e.currentTarget.getAttribute('data-id');
         if (confirm(`Are you sure you want to delete model '${id}'?`)) {
           deleteModel(id);
@@ -2193,6 +2213,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function populateEditForm(m) {
     if (!modelEditorForm) return;
+    showModelFormSection();
     document.getElementById('form-model-id').value = m.id;
     document.getElementById('form-model-name').value = m.name;
     const provSel = document.getElementById('form-model-provider');
@@ -2264,15 +2285,8 @@ document.addEventListener('DOMContentLoaded', () => {
     btnManageModels.addEventListener('click', (e) => {
       e.preventDefault();
       if (rawJsonStatusMsg) rawJsonStatusMsg.textContent = '';
-      fetchModelsRegistry().then(() => {
-        const activeId = getActiveToolbarModelId();
-        const activeModel = globalModelsRegistry.find(x => isModelMatchingActive(x, activeId));
-        if (activeModel) {
-          populateEditForm(activeModel);
-        } else {
-          resetEditForm();
-        }
-      });
+      hideModelFormSection();
+      fetchModelsRegistry();
       if (modelModalOverlay) {
         modelModalOverlay.classList.remove('hidden');
         modelModalOverlay.style.display = 'flex';
@@ -2280,28 +2294,41 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  if (btnAddNewModel) {
+    btnAddNewModel.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (tabBtnVisual && tabBtnRaw && modalTabVisual && modalTabRaw) {
+        tabBtnVisual.style.background = 'var(--color-primary)';
+        tabBtnVisual.style.color = '#fff';
+        tabBtnRaw.style.background = 'rgba(255,255,255,0.08)';
+        tabBtnRaw.style.color = 'var(--color-text-muted)';
+        modalTabVisual.style.display = 'block';
+        modalTabRaw.style.display = 'none';
+      }
+      resetEditForm();
+      showModelFormSection();
+      if (modelEditorForm) modelEditorForm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  }
+
   if (btnCloseModal) {
     btnCloseModal.addEventListener('click', (e) => {
       e.preventDefault();
-      if (modelModalOverlay) {
-        modelModalOverlay.classList.add('hidden');
-        modelModalOverlay.style.display = 'none';
-      }
+      closeModelModal();
     });
   }
 
   if (btnCancelEdit) {
     btnCancelEdit.addEventListener('click', (e) => {
       e.preventDefault();
-      resetEditForm();
+      hideModelFormSection();
     });
   }
 
   if (modelModalOverlay) {
     modelModalOverlay.addEventListener('click', (e) => {
       if (e.target === modelModalOverlay) {
-        modelModalOverlay.classList.add('hidden');
-        modelModalOverlay.style.display = 'none';
+        closeModelModal();
       }
     });
   }

@@ -1936,25 +1936,23 @@ function jsonResp(obj, ok = true, status = 200) {
   assert(ctx.window.formatOrchestrationBadge('AgentTool • Sequential').includes('🧰 AgentTool • ➡️ Sequential'));
   assert(ctx.window.formatOrchestrationBadge('AgentTool • Parallel • Loop').includes('🧰 AgentTool • ⚡ Parallel • 🔁 Loop'));
 
-  // 2. Sortable Cost Share (%) column + Multi-Model Pills & Toolbar Badge in Agent Breakdown (#adk-live-table-body, column index 7)
-  assert.strictEqual(els['toolbar-model-badge'].textContent, 'gemini-3.8-flash (+1 more)');
-  assert(els['toolbar-model-badge'].title.includes('gemini-4-argon') && els['toolbar-model-badge'].title.includes('gemini-3.8-flash'));
+  // 2. Sortable Cost Share (%) column + Multi-Model Pills in Agent Breakdown (#adk-live-table-body, column index 7) & No redundant toolbar-model-badge
+  assert.strictEqual(els['toolbar-model-badge'], undefined, 'Redundant toolbar-model-badge must be removed from top toolbar');
   const liveRows = els['adk-live-table-body'].children;
   assert.strictEqual(liveRows.length, 2);
   assert.strictEqual(liveRows[0].children.length, 8);
   assert(liveRows[0].children[0]._html.includes('gemini-4-argon'), 'Agent Breakdown row 0 must render planner_root model pill');
   assert(liveRows[1].children[0]._html.includes('gemini-3.8-flash'), 'Agent Breakdown row 1 must render tool_worker model pill');
 
-  // Sub-agent filter scopes toolbar Model/Turns/Spend badges dynamically, then restores multi-model summary when cleared
+  // Sub-agent filter scopes toolbar Turns/Spend badges dynamically, then restores session summary when cleared
   els['adk-app-select'].value = 'planner_root';
   els['adk-app-select']._listeners.change.forEach(f => f());
   await settle();
-  assert.strictEqual(els['toolbar-model-badge'].textContent, 'gemini-4-argon');
   assert.strictEqual(els['toolbar-turns-badge'].textContent, '1 turn');
   els['adk-app-select'].value = 'all';
   els['adk-app-select']._listeners.change.forEach(f => f());
   await settle();
-  assert.strictEqual(els['toolbar-model-badge'].textContent, 'gemini-3.8-flash (+1 more)');
+  assert.strictEqual(els['toolbar-turns-badge'].textContent, '2 turns');
 
   const topShare = parseFloat(els['adk-live-table-body'].children[0].children[7].getAttribute('data-sort-val'));
   const botShare = parseFloat(els['adk-live-table-body'].children[1].children[7].getAttribute('data-sort-val'));
@@ -1992,25 +1990,34 @@ function jsonResp(obj, ok = true, status = 200) {
   ctx.window.inspectBqRow(0);
   assert.strictEqual(els['modal-bq-latency'].textContent, '315 ms');
 
-  // 5. Rate Card modal: marks ALL active session models Active 🟢, displays config_path, preserves "medium"/65536/allowed_* on gemini-4-argon, and refreshes Tab 2 on save!
+  // 5. Rate Card modal: form is HIDDEN by default on open, opens when selecting a model row (or + Add Model), hides on Cancel, marks ALL active session models Active 🟢, and refreshes Tab 2 on save!
   els['btn-manage-models']._listeners.click.forEach(f => f({ preventDefault() {} }));
   await settle();
+  assert.strictEqual(els['modal-form-section'].style.display, 'none', 'Edit form must be hidden when Rate Card modal first opens');
   const activeModalRows = els['modal-models-table-body'].children.filter(tr => (tr._html || '').includes('Active 🟢'));
   assert.strictEqual(activeModalRows.length, 2, 'Both gemini-4-argon and gemini-3.8-flash must be marked Active 🟢');
   assert.strictEqual(els['modal-models-config-path'].textContent, '/tmp/xdg/adk-tokenomics/models_config.json');
+
+  // Clicking a model row opens the Edit form populated with that model; Cancel hides it again; + Add Model re-opens blank
+  const argonRow = els['modal-models-table-body'].children.find(tr => (tr._html || '').includes('gemini-4-argon'));
+  argonRow._listeners.click.forEach(f => f({ target: argonRow }));
+  assert.strictEqual(els['modal-form-section'].style.display, 'block', 'Selecting a model row must reveal the Edit form');
+  assert.strictEqual(els['form-model-id'].value, 'publishers/google/models/gemini-4-argon');
+  els['btn-cancel-edit']._listeners.click.forEach(f => f({ preventDefault() {} }));
+  assert.strictEqual(els['modal-form-section'].style.display, 'none', 'Cancel must hide the Edit form');
+  els['btn-add-new-model']._listeners.click.forEach(f => f({ preventDefault() {} }));
+  assert.strictEqual(els['modal-form-section'].style.display, 'block', '+ Add Model must reveal the blank form');
+
+  // Select gemini-4-argon again, update rates, and submit -> saves & closes/hides form
+  argonRow._listeners.click.forEach(f => f({ target: argonRow }));
   const statsBeforeSave = bqStatsCalls;
   const logsBeforeSave = bqLogsCalls;
-  // Active toolbar model is gemini-3.8-flash; load gemini-4-argon into edit form by setting fields via populate logic
-  els['form-model-id'].value = 'publishers/google/models/gemini-4-argon';
-  els['form-model-name'].value = 'Gemini 4 Argon';
-  els['form-model-provider'].value = 'google';
   els['form-price-input'].value = '2.5';
   els['form-price-cached'].value = '0.25';
   els['form-price-output'].value = '12.0';
-  els['form-thinking-budget'].value = 'medium';
-  els['form-max-tokens'].value = '65536';
   els['model-editor-form']._listeners.submit.forEach(f => f({ preventDefault() {} }));
   await settle();
+  assert.strictEqual(els['modal-form-section'].style.display, 'none', 'Form must reset to hidden after saving');
 
   assert.strictEqual(savedPayloads.length, 1);
   assert.strictEqual(savedPayloads[0].thinking_budget, 'medium');
@@ -2033,7 +2040,6 @@ function jsonResp(obj, ok = true, status = 200) {
   const nonNumHtml = els['adk-live-table-body']._html || els['adk-live-table-body'].children.map(r => r._html).join('');
   assert(!nonNumHtml.includes('NaN'), 'Non-numeric cost must never render NaN: ' + nonNumHtml);
   assert(nonNumHtml.includes('100.0%') && nonNumHtml.includes('0.0%'), 'Valid agent gets 100.0% and bad agent gets 0.0%: ' + nonNumHtml);
-  assert.strictEqual(els['toolbar-model-badge'].textContent, '—', 'Empty model session must reset toolbar badge to —');
 
   console.log('V102_FRONTEND_PARITY_OK');
 })().catch(err => {
