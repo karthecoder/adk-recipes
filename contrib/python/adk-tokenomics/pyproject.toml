@@ -13,9 +13,9 @@ requires-python = ">=3.11"
 dependencies = []
 
 [project.urls]
-Homepage = "https://github.com/karthecoder/adk-tokenomics-plugin"
-Repository = "https://github.com/karthecoder/adk-tokenomics-plugin"
-Issues = "https://github.com/karthecoder/adk-tokenomics-plugin/issues"
+Homepage = "https://github.com/google/adk-recipes/tree/main/contrib/python/adk-tokenomics"
+Repository = "https://github.com/google/adk-recipes/tree/main/contrib/python/adk-tokenomics"
+Issues = "https://github.com/google/adk-recipes/issues"
 
 [project.optional-dependencies]
 adk = [
