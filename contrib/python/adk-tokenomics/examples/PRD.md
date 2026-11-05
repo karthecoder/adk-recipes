@@ -4,7 +4,7 @@
 | :--- | :--- |
 | **Document Status** | Approved Reference Architecture (`v1.1` — Audited & Codebase-Verified against `google-adk 2.9.2` & `adk-tokenomics-plugin 1.0.2`) |
 | **Orchestration Stack** | Google Agent Development Kit (`google-adk >= 2.9.2`), Google GenAI SDK (`google-genai >= 2.25.0`), and `adk-tokenomics-plugin` (`v1.0.2`) |
-| **Model Architecture** | Model-Agnostic Capability Tiers (`Minimal` / `Low` / `Medium`), parameterized via `MODEL_NAME`, `FRONTIER_MODEL_NAME`, and custom rate-card registration (`custom/nexus-policy-guard-v1` under `provider="custom"`) |
+| **Model Architecture** | Model-Agnostic Capability Tiers (`Minimal` / `Low` / `Medium`), parameterized via `MODEL_NAME` and `FRONTIER_MODEL_NAME` |
 | **Reference Baselines** | **Optimized (`nexus_optimized`):** `publishers/google/models/gemini-3.8-flash` + role-tiered `BuiltInPlanner` / `ThinkingLevel` + `ContextCacheConfig` + `EventsCompactionConfig` + `SkillToolset`<br>**Unoptimized (`nexus_unoptimized`):** `publishers/google/models/gemini-4-argon` across all sub-agents with monolithic 6,000-token static instructions and unbounded `ThinkingLevel.HIGH` reasoning |
 | **Design Patterns** | Root Coordinator Routing (`🎯 Root`), Ephemeral Child-Session `AgentTool` (`🧰 AgentTool`), Sequential Pipeline (`➡️ SequentialAgent`), Concurrent Fan-Out (`⚡ ParallelAgent`), Bounded Reflection Loop (`🔁 LoopAgent`), Progressive Skill Disclosure (`SkillToolset` / `load_skill`), `@track_tokens` Standalone Decorator, and Live Self-Profiling (`tower.get_finops_advisor_prompt()`) |
 | **Execution Modes** | End-to-End 5-Act CLI Showcase (`python3 examples/run_nexus_showcase.py`), Interactive ADK UI (`adk web examples/`), Native Evaluation + CI Gate (`adk eval` + `adk-tokenomics assert`), and Token Control Tower Observatory (`adk-tokenomics web`) |
@@ -29,7 +29,7 @@ Developers evaluating an AI unit-economics and FinOps SDK need more than a singl
 | **`nexus_router`** | Root `LlmAgent` + `SkillToolset` | `Minimal` | `🎯 Root` flow badge, `model_tiering` detection on fast-path turns, `⚡ load_skill` progressive disclosure (`modular_skills`), and `EventsCompactionConfig` (`history_compaction`) |
 | **`quant_sandbox_tool`** | `AgentTool` wrapping `sandbox_analyst` (`LlmAgent`) + `@track_tokens` helper | `Low` | `🧰 AgentTool` ephemeral child-session → parent `session_id` stitching + [`@track_tokens`](../adk_tokenomics_plugin/middleware/decorator.py) standalone function tracking (`session_id="decorated_session"`) |
 | **`deep_research_pipeline`** | `SequentialAgent` | Composite | `➡️ Sequential` stage attribution across nested parallel and loop sub-workflows |
-| **`signal_gatherers`** | `ParallelAgent` (`market_intel_analyst`, `metrics_sql_analyst`, `risk_policy_analyst`) | `Low` ∥ `Low` ∥ `Low` | `⚡ Parallel` (`Sequential • Parallel`) flow badge, `tool_use_prompt_token_count` tracking, and custom rate-card pricing via [`tower.register_model(..., provider="custom")`](../adk_tokenomics_plugin/tower.py) on `risk_policy_analyst` |
+| **`signal_gatherers`** | `ParallelAgent` (`market_intel_analyst`, `metrics_sql_analyst`, `risk_policy_analyst`) | `Low` ∥ `Low` ∥ `Low` | `⚡ Parallel` (`Sequential • Parallel`) flow badge, `tool_use_prompt_token_count` tracking, and concurrent sub-agent attribution |
 | **`deliverable_refiner`** | `LoopAgent` (`report_drafter` → `adversarial_critic`, `max_iterations=2`) | `Medium` → `Low` | `🔁 Loop` (`Sequential • Loop`) compound badge, `BuiltInPlanner` `thoughts_token_count` (`thinking_budget` rule), and `exit_loop` convergence |
 | **`packager_agent`** | Final `LlmAgent` in `deep_research_pipeline` | `Minimal` | Deterministic 5-section Markdown artifact writer (`save_executive_brief`) with `output_key="final_report_path"` |
 | **`audit_session_tokenomics`** | `FunctionTool` calling [`tower.get_finops_advisor_prompt()`](../adk_tokenomics_plugin/tower.py) | `Minimal` | Live in-chat FinOps self-inspection of accumulated session turns, sub-agent spend, and counterfactual savings |
@@ -58,7 +58,7 @@ flowchart TD
         direction LR
         P1["market_intel_analyst (LlmAgent | Tier: Low) | output_key: 'parallel_market_intel'"]
         P2["metrics_sql_analyst (LlmAgent | Tier: Low) | output_key: 'parallel_metrics_sql'"]
-        P3["risk_policy_analyst (LlmAgent | Model: custom/nexus-policy-guard-v1) | output_key: 'parallel_risk_policy'"]
+        P3["risk_policy_analyst (LlmAgent | Tier: Low) | output_key: 'parallel_risk_policy'"]
     end
 
     subgraph Loop_Stage ["Stage 2: deliverable_refiner (LoopAgent | max_iterations=2)"]
@@ -111,7 +111,7 @@ nexus_router (LlmAgent — Root Coordinator + SkillToolset | Tier: Minimal)
       │       │    └── [Tool] fetch_market_benchmarks (FunctionTool)
       │       ├── metrics_sql_analyst (LlmAgent | Tier: Low | output_key="parallel_metrics_sql")
       │       │    └── [Tool] query_telemetry_warehouse (FunctionTool)
-      │       └── risk_policy_analyst (LlmAgent | Model: custom/nexus-policy-guard-v1 | Tier: Low | output_key="parallel_risk_policy")
+      │       └── risk_policy_analyst (LlmAgent | Tier: Low | output_key="parallel_risk_policy")
       │            └── [Tool] evaluate_compliance_controls (FunctionTool)
       ├── 2. deliverable_refiner (LoopAgent | max_iterations=2)
       │       ├── report_drafter (LlmAgent | Tier: Medium)
@@ -134,7 +134,7 @@ nexus_router (LlmAgent — Root Coordinator + SkillToolset | Tier: Minimal)
 | **`sandbox_analyst`** | `LlmAgent` (inside `AgentTool`) | **`Low`** (`MODEL_NAME`) | `FRONTIER_MODEL_NAME` + `ThinkingLevel.HIGH` | `{target_initiative?}` | `sandbox_quant_model` (via tool) | `run_roi_monte_carlo` |
 | **`market_intel_analyst`** | `LlmAgent` | **`Low`** (`MODEL_NAME`) | `FRONTIER_MODEL_NAME` | `{target_initiative?}` | `parallel_market_intel` (`output_key` only) | `fetch_market_benchmarks` |
 | **`metrics_sql_analyst`** | `LlmAgent` | **`Low`** (`MODEL_NAME`) | `FRONTIER_MODEL_NAME` | `{target_initiative?}` | `parallel_metrics_sql` (`output_key` only) | `query_telemetry_warehouse` |
-| **`risk_policy_analyst`** | `LlmAgent` | **`Low`** (`custom/nexus-policy-guard-v1`, `provider="custom"`) | `FRONTIER_MODEL_NAME` | `{target_initiative?}` | `parallel_risk_policy` (`output_key` only) | `evaluate_compliance_controls` |
+| **`risk_policy_analyst`** | `LlmAgent` | **`Low`** (`MODEL_NAME`) | `FRONTIER_MODEL_NAME` | `{target_initiative?}` | `parallel_risk_policy` (`output_key` only) | `evaluate_compliance_controls` |
 | **`report_drafter`** | `LlmAgent` | **`Medium`** (`FRONTIER_MODEL_NAME`) | `FRONTIER_MODEL_NAME` + `ThinkingLevel.HIGH` | `{target_initiative?}`, `{parallel_market_intel?}`, `{parallel_metrics_sql?}`, `{parallel_risk_policy?}`, `{sandbox_quant_model?}`, `{critic_feedback?}` | `deliverable_drafts` (via `append_state_entry`) | `append_state_entry` |
 | **`adversarial_critic`** | `LlmAgent` | **`Low`** (`MODEL_NAME` + bounded `BuiltInPlanner`) | `FRONTIER_MODEL_NAME` + `ThinkingLevel.HIGH` `BuiltInPlanner` | `{deliverable_drafts?}`, `{parallel_metrics_sql?}`, `{parallel_risk_policy?}`, `{sandbox_quant_model?}` | `critic_feedback` (via `append_state_entry`, conditional) | `append_state_entry`, `exit_loop` |
 | **`packager_agent`** | `LlmAgent` | **`Minimal`** (`MODEL_NAME`) | `FRONTIER_MODEL_NAME` | `{target_initiative?}`, `{deliverable_drafts?}` | `final_report_path` (`output_key` only) + Disk file via `save_executive_brief` | `save_executive_brief` |
@@ -236,7 +236,7 @@ All prompt templates reference session state strictly via optional `{key?}` plac
 > [!IMPORTANT]
 > **`BuiltInPlanner` Precedence in `google-adk >= 2.9.2`:** In Google ADK, `BuiltInPlanner.apply_thinking_config()` overwrites `llm_request.config.thinking_config` whenever a planner is attached to `LlmAgent`. In addition, `publishers/google/models/gemini-4-argon` only accepts `allowed_thinking_budgets: ["low", "medium", "high"]` (not `"minimal"`). Therefore, `resolve_planner_and_config()` assigns `thinking_config` exclusively via `BuiltInPlanner`, sets `temperature=1.0` on `GenerateContentConfig` without a duplicate `thinking_config`, and clamps `"minimal"` → `ThinkingLevel.LOW` on `gemini-4*` models.
 
-| Abstract PRD Tier | Assigned Agents | `nexus_optimized` Profile (`gemini-3.8-flash` / `gemini-4-argon`) | `nexus_unoptimized` Anti-Pattern Profile (`gemini-4-argon` everywhere) | Legacy Gemini 2.5 Profile (`gemini-2.5-flash`) | Custom / 3P `LiteLlm` Profile (`custom/nexus-policy-guard-v1`) |
+| Abstract PRD Tier | Assigned Agents | `nexus_optimized` Profile (`gemini-3.8-flash` / `gemini-4-argon`) | `nexus_unoptimized` Anti-Pattern Profile (`gemini-4-argon` everywhere) | Legacy Gemini 2.5 Profile (`gemini-2.5-flash`) | 3P `LiteLlm` Profile (`anthropic/claude-3-5-haiku`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **`Minimal`** | `nexus_router`, `packager_agent` | `ThinkingLevel.MINIMAL` (`LOW` on `gemini-4*`), `temperature=1.0` | `ThinkingLevel.HIGH`, `include_thoughts=True` | `thinking_budget=0`, `temperature=0.2` | `(None, None)` |
 | **`Low`** | `sandbox_analyst`, `market_intel_analyst`, `metrics_sql_analyst`, `risk_policy_analyst`, `adversarial_critic` | `ThinkingLevel.LOW`, `temperature=1.0` | `ThinkingLevel.HIGH`, `include_thoughts=True` | `thinking_budget=256`, `temperature=0.7` | `(None, None)` |
@@ -312,7 +312,7 @@ def resolve_planner_and_config(
 
 | # | FinOps Lever (`OptimizationRulesConfig` Rule) | `nexus_unoptimized` (`unopt_baseline`) | `nexus_optimized` (`opt_tuned`) | Measured Token & Cost Impact |
 | :--- | :--- | :--- | :--- | :--- |
-| **1** | **Sub-Agent Model Tiering (`model_tiering`)** | Runs all 8 agents on `publishers/google/models/gemini-4-argon` (`\$2.00` in / `\$10.00` out per 1M) | Tiers `nexus_router`, `sandbox_analyst`, `market_intel_analyst`, `metrics_sql_analyst`, `adversarial_critic`, and `packager_agent` to `publishers/google/models/gemini-3.8-flash` (`\$0.75` in / `\$3.75` out) and `risk_policy_analyst` to `custom/nexus-policy-guard-v1` (`provider="custom"`, `\$0.20` in / `\$0.80` out); keeps `gemini-4-argon` strictly on `report_drafter` | **~62% reduction** on routing, retrieval, critique, and packaging turns |
+| **1** | **Sub-Agent Model Tiering (`model_tiering`)** | Runs all 8 agents on `publishers/google/models/gemini-4-argon` | Tiers `nexus_router`, `sandbox_analyst`, `market_intel_analyst`, `metrics_sql_analyst`, `risk_policy_analyst`, `adversarial_critic`, and `packager_agent` to `publishers/google/models/gemini-3.8-flash`; keeps `gemini-4-argon` strictly on `report_drafter` | **~62% reduction** on routing, retrieval, critique, and packaging turns |
 | **2** | **Prefix Context Caching (`context_caching`)** | `App(..., context_cache_config=None)` → `0` cached tokens across all turns | `App(..., context_cache_config=ContextCacheConfig(min_tokens=1024, ttl_seconds=300))` | **90%–95% discount** on repeated system instructions and tool declarations (`\$0.075` vs. `\$0.75`/1M on Flash; `\$0.10` vs. `\$2.00`/1M on Argon) |
 | **3** | **Multi-Turn Event Compaction (`history_compaction`)** | `App(..., events_compaction_config=None)` across 4 uncompacted user turns (`+700` and `+550` fresh token growth/turn) | `App(..., events_compaction_config=EventsCompactionConfig(compaction_interval=4, overlap_size=1))` across 3 compacted user turns (`fresh_tok` delta `<= 0`) | Prevents multi-turn prompt snowballing and satisfies `effective_user_turns < 4` & `rapid_growth == False` |
 | **4** | **Modular Skills Progressive Disclosure (`modular_skills`)** | Pastes all 3 domain handbooks (~6,200 tokens) inline into `nexus_router`'s static `instruction` on every turn (`total_fresh = 39,450 > 5,000`) | Replaces inline manual with a 180-token `instruction` + `SkillToolset` (`finops-playbooks`, `sql-telemetry`, `compliance-controls`) loaded on demand via `load_skill` | Cuts session `total_fresh` to **`3,680` tokens (`<= 5,000`)** — a **90.7% fresh-token reduction** |
@@ -341,7 +341,7 @@ def resolve_planner_and_config(
 | **1** | `inv_o1` (Scope + `⚡ load_skill`) | `nexus_router` (`Root`) | `gemini-3.8-flash` | `420` | `1,400` | `160` | `0` | `\$0.00102` | `\$0.00095` |
 | **2** | `inv_o1` (AgentTool ROI) | `sandbox_analyst` (`AgentTool`) | `gemini-3.8-flash` | `380` | `1,200` | `220` | `0` | `\$0.00120` | `\$0.00081` |
 | **3–4** | `inv_o2` (Parallel Market & SQL) | `market_intel` ∥ `metrics_sql` (`Sequential • Parallel`) | `gemini-3.8-flash` (x2) | `640` | `2,400` | `560` | `0` | `\$0.00276` | `\$0.00162` |
-| **5** | `inv_o2` (Parallel Custom Model) | `risk_policy_analyst` (`Sequential • Parallel`) | `custom/nexus-policy-guard-v1` | `310` | `1,200` | `260` | `0` | `\$0.00033` | `\$0.00018` |
+| **5** | `inv_o2` (Parallel Compliance) | `risk_policy_analyst` (`Sequential • Parallel`) | `gemini-3.8-flash` | `310` | `1,200` | `260` | `0` | `\$0.00130` | `\$0.00081` |
 | **6** | `inv_o2` (Loop Drafter) | `report_drafter` (`Sequential • Loop`) | `gemini-4-argon` | `780` | `2,800` | `920` | `180` | `\$0.01284` | `\$0.00532` |
 | **7** | `inv_o2` (Loop Critic) | `adversarial_critic` (`Sequential • Loop`) | `gemini-3.8-flash` | `450` | `2,600` | `190` | `140` | `\$0.00177` | `\$0.00176` |
 | **8** | `inv_o2` (Packager) | `packager_agent` (`Sequential`) | `gemini-3.8-flash` | `320` | `2,600` | `280` | `0` | `\$0.00149` | `\$0.00176` |

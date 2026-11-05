@@ -26,7 +26,6 @@ FRONTIER_MODEL_NAME: str = os.environ.get(
     "NEXUS_FRONTIER_MODEL",
     "publishers/google/models/gemini-4-argon",
 )
-CUSTOM_POLICY_MODEL_ID: str = "custom/nexus-policy-guard-v1"
 
 AGENT_REASONING_TIERS: dict[str, str] = {
     "nexus_router": "minimal",
@@ -428,9 +427,8 @@ def create_nexus_tower(
 ) -> tuple[TokenControlTower, ADKTokenomicsPlugin]:
     """
     Creates a pre-configured TokenControlTower and ADKTokenomicsPlugin with:
-      1. Custom model registration (`custom/nexus-policy-guard-v1` under `provider='custom'`).
-      2. Custom FinOps SLA callback (`flag_high_cost_session`).
-      3. Optional `--prompts-file` (`finops_policy.json`) loading.
+      1. Custom FinOps SLA callback (`flag_high_cost_session`).
+      2. Optional `--prompts-file` (`finops_policy.json`) loading.
     """
     default_policy = Path(__file__).resolve().parent / "finops_policy.json"
     resolved_prompts_cfg = prompts_config_path or (
@@ -445,14 +443,6 @@ def create_nexus_tower(
         default_model=MODEL_NAME,
         prompts_config_path=resolved_prompts_cfg,
         optimization_rules=OptimizationRulesConfig(),
-    )
-    tower.register_model(
-        model_id=CUSTOM_POLICY_MODEL_ID,
-        input_per_million=0.20,
-        cached_per_million=0.05,
-        output_per_million=0.80,
-        provider="custom",
-        name="Nexus Fine-Tuned Policy Guard v1",
     )
     tower.add_recommendation_rule(flag_high_cost_session)
 

@@ -3,7 +3,7 @@
 This directory contains the reference multi-agent showcase for **`adk-tokenomics-plugin`**, designed to exercise **all 18 SDK, CLI, OpenTelemetry, and Web Observatory capabilities** across two side-by-side Google ADK agent packages:
 
 - **`examples/nexus_unoptimized/` (`unopt_baseline`):** Demonstrates the 5 classic multi-agent cost anti-patterns (frontier `gemini-4-argon` on every sub-agent, 6,200-token monolithic static system prompt, no `ContextCacheConfig`, no `EventsCompactionConfig`, and unbounded `ThinkingLevel.HIGH` reasoning).
-- **`examples/nexus_optimized/` (`opt_tuned`):** Applies the exact 5 Google ADK optimizations recommended by `adk-tokenomics profile` (`gemini-3.8-flash` + custom `custom/nexus-policy-guard-v1` model tiering, `ContextCacheConfig`, `EventsCompactionConfig`, on-demand `SkillToolset` `SKILL.md` modules, and right-sized `BuiltInPlanner` `ThinkingLevel` tiers)—reducing session spend by **86.0%** (`\$0.16220` → `\$0.02272`) and achieving **81.2% prefix cache efficiency**.
+- **`examples/nexus_optimized/` (`opt_tuned`):** Applies the exact 5 Google ADK optimizations recommended by `adk-tokenomics profile` (`gemini-3.8-flash` + `gemini-4-argon` sub-agent model tiering, `ContextCacheConfig`, `EventsCompactionConfig`, on-demand `SkillToolset` `SKILL.md` modules, and right-sized `BuiltInPlanner` `ThinkingLevel` tiers) - reducing session spend by **85.4%** and achieving **81.2% prefix cache efficiency**.
 
 ---
 
@@ -17,7 +17,7 @@ This directory contains the reference multi-agent showcase for **`adk-tokenomics
  │    ├── 1. ⚡ signal_gatherers (ParallelAgent)
  │    │       ├── market_intel_analyst (LlmAgent | output_key="parallel_market_intel")
  │    │       ├── metrics_sql_analyst (LlmAgent | output_key="parallel_metrics_sql")
- │    │       └── risk_policy_analyst (LlmAgent | Model: custom/nexus-policy-guard-v1 | output_key="parallel_risk_policy")
+ │    │       └── risk_policy_analyst (LlmAgent | output_key="parallel_risk_policy")
  │    ├── 2. 🔁 deliverable_refiner (LoopAgent, max_iterations=2)
  │    │       ├── report_drafter (LlmAgent | Tier: Medium)
  │    │       └── adversarial_critic (LlmAgent | Tier: Low + BuiltInPlanner + exit_loop)

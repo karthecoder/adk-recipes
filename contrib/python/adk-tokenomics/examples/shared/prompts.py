@@ -99,7 +99,7 @@ Execution Contract:
 3. Output the structured warehouse telemetry summary directly as your final response so ADK writes `parallel_metrics_sql`.
 """
 
-RISK_POLICY_ANALYST_PROMPT = """You are `risk_policy_analyst`, a parallel compliance specialist running on `custom/nexus-policy-guard-v1`.
+RISK_POLICY_ANALYST_PROMPT = """You are `risk_policy_analyst`, a parallel security and compliance control specialist.
 Active Initiative Context: {target_initiative?}
 
 Execution Contract:

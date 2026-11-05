@@ -287,16 +287,16 @@ adk-tokenomics assert \
 
 > **Dynamic Per-Turn Pricing & Rate-Card Customization:** Every LLM turn is priced dynamically using the exact model returned by that sub-agent's execution (`llm_response.model_version` / `llm_request.model`), with `TOKENOMICS_DEFAULT_MODEL` used only as a fallback when an event carries no model metadata. Packaged entries in `models_config.json` provide illustrative baseline rate cards for local simulation - override them anytime via `models_config.json`, the Web UI `Rate Card ⚙️` editor, or `tower.register_model()` to reflect current provider pricing or enterprise discounts.
 
-You can register custom model rate cards at runtime:
+You can register new model releases or custom rate cards at runtime:
 
 ```python
 tower.register_model(
-    model_id="custom/fine-tuned-gemini-flash",
-    input_per_million=0.20,
-    cached_per_million=0.05,
-    output_per_million=0.80,
-    provider="google",
-    name="Fine-Tuned Gemini Flash",
+    model_id="anthropic/claude-sonnet-4-5",
+    input_per_million=3.00,
+    cached_per_million=0.30,
+    output_per_million=15.00,
+    provider="anthropic",
+    name="Claude Sonnet 4.5",
 )
 ```
 
@@ -481,7 +481,7 @@ examples/
 ├── run_nexus_showcase.py    # Turnkey 5-Act E2E runner (Unoptimized -> Assert -> Profile -> Optimized -> Web)
 ├── shared/                  # Shared tools, {key?} prompts, SkillToolset loader & hermetic ADK runner
 ├── nexus_unoptimized/       # Baseline ADK App (Argon everywhere, 6k static prompt, 0% cache hit)
-└── nexus_optimized/         # FinOps-tuned ADK App (Flash + Custom model tiering, ContextCacheConfig, Skills)
+└── nexus_optimized/         # FinOps-tuned ADK App (Flash + Argon model tiering, ContextCacheConfig, Skills)
 ```
 
 ---

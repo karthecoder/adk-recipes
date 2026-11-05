@@ -13,7 +13,6 @@ from typing import Any
 from adk_tokenomics_plugin import ADKTokenomicsPlugin, TokenControlTower
 from examples.shared.config_adapter import (
     AGENT_REASONING_TIERS,
-    CUSTOM_POLICY_MODEL_ID,
     FRONTIER_MODEL_NAME,
     MODEL_NAME,
     AgentTool,
@@ -103,8 +102,6 @@ def build_nexus_agents(
     def _model_for(agent_name: str) -> str:
         if not optimized:
             return FRONTIER_MODEL_NAME
-        if agent_name == "risk_policy_analyst":
-            return CUSTOM_POLICY_MODEL_ID
         if agent_name == "report_drafter":
             return FRONTIER_MODEL_NAME
         return MODEL_NAME

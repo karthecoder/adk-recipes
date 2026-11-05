@@ -2,7 +2,7 @@
 """
 Nexus FinOps-Optimized ADK Agent (`nexus_optimized`).
 Applies all 5 ADK FinOps optimizations recommended by `adk-tokenomics profile`:
-  1. Sub-agent model tiering (`gemini-3.8-flash` + `custom/nexus-policy-guard-v1`; `gemini-4-argon` only on `report_drafter`).
+  1. Sub-agent model tiering (`gemini-3.8-flash` on routing/parallel/critic/packager agents; `gemini-4-argon` only on `report_drafter`).
   2. Prefix Context Caching (`ContextCacheConfig(min_tokens=1024, ttl_seconds=300)`).
   3. Multi-Turn Event Compaction (`EventsCompactionConfig(compaction_interval=4, overlap_size=1)`).
   4. Progressive Skill Disclosure (`SkillToolset` loading `SKILL.md` modules via `load_skill`).

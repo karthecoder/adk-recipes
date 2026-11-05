@@ -4,7 +4,6 @@ Shared components, tools, prompts, and simulation helpers for the Nexus ADK Toke
 
 from examples.shared.config_adapter import (
     AGENT_REASONING_TIERS,
-    CUSTOM_POLICY_MODEL_ID,
     FRONTIER_MODEL_NAME,
     HAS_GOOGLE_ADK,
     MODEL_NAME,
@@ -37,7 +36,6 @@ __all__ = [
     "AGENT_REASONING_TIERS",
     "ALLOWED_STATE_FIELDS",
     "ALL_PROMPTS",
-    "CUSTOM_POLICY_MODEL_ID",
     "FRONTIER_MODEL_NAME",
     "HAS_GOOGLE_ADK",
     "MODEL_NAME",

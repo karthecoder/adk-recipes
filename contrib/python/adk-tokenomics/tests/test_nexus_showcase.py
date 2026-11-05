@@ -22,7 +22,6 @@ import examples.nexus_unoptimized as nexus_unopt_pkg
 from adk_tokenomics_plugin import TokenomicsTestCase
 from examples.run_nexus_showcase import run_showcase
 from examples.shared.config_adapter import (
-    CUSTOM_POLICY_MODEL_ID,
     FRONTIER_MODEL_NAME,
     MODEL_NAME,
     genai_types,
@@ -94,20 +93,13 @@ class TestNexusShowcase(TokenomicsTestCase):
                 opt.agents["metrics_sql_analyst"].model, MODEL_NAME
             )
             self.assertEqual(
-                opt.agents["risk_policy_analyst"].model, CUSTOM_POLICY_MODEL_ID
+                opt.agents["risk_policy_analyst"].model, MODEL_NAME
             )
             self.assertEqual(
                 opt.agents["report_drafter"].model, FRONTIER_MODEL_NAME
             )
             self.assertEqual(opt.agents["adversarial_critic"].model, MODEL_NAME)
             self.assertEqual(opt.agents["packager_agent"].model, MODEL_NAME)
-
-            # Verify custom model is registered under provider='custom' to prevent false model_tiering warnings
-            rate = opt.tower.pricing.get_rate(CUSTOM_POLICY_MODEL_ID)
-            self.assertEqual(rate["provider"], "custom")
-            self.assertAlmostEqual(rate["input"], 0.20)
-            self.assertAlmostEqual(rate["cached"], 0.05)
-            self.assertAlmostEqual(rate["output"], 0.80)
 
     def test_02_resolve_planner_and_config_cross_model_matrix(self):
         # 1. Gemini 3.x maps minimal -> MINIMAL, low -> LOW, medium -> MEDIUM
@@ -152,9 +144,9 @@ class TestNexusShowcase(TokenomicsTestCase):
         self.assertEqual(p_25.thinking_config.thinking_budget, 256)
         self.assertEqual(c_25.temperature, 0.7)
 
-        # 5. Custom / 3P models gracefully return (None, None)
+        # 5. 3P / Non-Gemini models gracefully return (None, None)
         p_cust, c_cust = resolve_planner_and_config(
-            CUSTOM_POLICY_MODEL_ID, "low", optimized=True
+            "anthropic/claude-3-5-haiku", "low", optimized=True
         )
         self.assertIsNone(p_cust)
         self.assertIsNone(c_cust)
